@@ -19,6 +19,7 @@ class QPilot:
         self.logger.debug('Model loaded')
 
         self.tokenizer = AutoTokenizer.from_pretrained(os.environ.get('BASE_MDL_NAME'), token=os.environ.get('HF_TOKEN'), model_max_length=os.environ.get('CUTOFF_LEN'), padding_side="right")
+        self.tokenizer.pad_token = self.tokenizer.eos_token
         self.logger.debug('Tokenizer loaded')
 
     def get_output(self, text):
