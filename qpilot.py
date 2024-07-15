@@ -45,7 +45,7 @@ class QPilot:
         <|start_header_id|>system<|end_header_id|>Do not add Notes or examples.<|eot_id|>
         <|start_header_id|>user<|end_header_id|>Q language question:{question}<|eot_id|>"""
         answer = self.get_output(prompt)
-        self.logger.log(f'Answer:{answer}')
+        self.logger.debug(f'Answer:{answer}')
 
         return answer
 
