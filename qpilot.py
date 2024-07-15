@@ -15,7 +15,7 @@ class QPilot:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-        self.model = mlflow.pyfunc.load_model(os.environ.get('CUST_MDL_URL'))
+        self.model = mlflow.transformers.load_model(os.environ.get('CUST_MDL_URL'))
         self.logger.debug('Model loaded')
 
         self.tokenizer = AutoTokenizer.from_pretrained(os.environ.get('BASE_MDL_NAME'), token=os.environ.get('HF_TOKEN'), model_max_length=int(os.environ.get('CUTOFF_LEN')), padding_side="right")
