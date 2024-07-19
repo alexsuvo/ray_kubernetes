@@ -5,7 +5,7 @@ from starlette.requests import Request
 from vllm import LLM, SamplingParams
 
 
-@serve.deployment(ray_actor_options={"num_gpus": 1.0, "num_cpu": 4})
+@serve.deployment(ray_actor_options={"num_gpus": 1.0, "num_cpus": 4})
 class QPilot:
 
     def __init__(self):
