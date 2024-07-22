@@ -8,7 +8,7 @@ from starlette.requests import Request
 from transformers import AutoTokenizer, GenerationConfig, BitsAndBytesConfig
 
 
-@serve.deployment(ray_actor_options={"num_gpus": 1.0, "num_cpus": 8})
+@serve.deployment(ray_actor_options={"num_gpus": 1.0, "num_cpus": 4})
 class QPilotQuant:
 
     def __init__(self):
