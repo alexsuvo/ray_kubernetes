@@ -1,42 +1,54 @@
-import logging
+import os
 
+import torch
+from peft import AutoPeftModelForCausalLM
 from ray import serve
 from starlette.requests import Request
-from vllm import LLM, SamplingParams
+from transformers import AutoTokenizer, GenerationConfig, BitsAndBytesConfig
 
 
 @serve.deployment(ray_actor_options={"num_gpus": 1.0, "num_cpus": 8})
 class QPilot:
 
     def __init__(self):
-        self.logger = logging.getLogger("ray.serve")
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        print(f'### Device:{self.device}')
 
-        self.model = LLM(model='/mnt/azure', tokenizer='/mnt/azure', trust_remote_code=True, gpu_memory_utilization=0.7)
-        self.logger.info('### Model loaded')
+        quant_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.float16, bnb_4bit_use_double_quant=False)
+        self.model = AutoPeftModelForCausalLM.from_pretrained(os.environ.get('MDL_LOC'), token=os.environ.get('HF_TOKEN'), trust_remote_code=True, quantization_config=quant_config)
+        print('### Model loaded')
 
-        self.tokenizer = self.model.get_tokenizer()
+        self.tokenizer = AutoTokenizer.from_pretrained(os.environ.get('BASE_MDL_NAME'), token=os.environ.get('HF_TOKEN'), model_max_length=int(os.environ.get('CUTOFF_LEN')), padding_side="right")
         self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.logger.info('### Tokenizer loaded')
+        print('### Tokenizer loaded')
+
+    def get_output(self, text):
+        torch.cuda.empty_cache()
+
+        inputs = self.tokenizer.encode_plus(text, return_tensors="pt", padding="longest", truncation=True, max_length=int(os.environ.get('CUTOFF_LEN')))
+
+        input_ids = inputs["input_ids"].to(self.device)
+        attention_mask = inputs["attention_mask"].to(self.device)
+
+        output = self.model.model.generate(input_ids, attention_mask=attention_mask, max_length=int(os.environ.get('CUTOFF_LEN')),
+                                           generation_config=GenerationConfig(temperature=0.001, top_p=1.0, num_beams=1, pad_token_id=self.tokenizer.eos_token_id))
+
+        return self.tokenizer.decode(output[0], skip_special_tokens=True)
 
     async def __call__(self, http_request: Request) -> str:
         req = await http_request.json()
-        self.logger.info(f'### Request body: {req}')
+        print(f'### Request body: {req}')
 
         question = req['question']
-        self.logger.info(f'### Question:{question}')
+        print(f'### Question:{question}')
 
-        conversation = self.tokenizer.apply_chat_template([{'role': 'system', 'content': 'You are a powerful Q language question-answering system.'},
-                                                           {'role': 'system', 'content': 'Your job is to provide a single and concise Q language answer to a Q language question.'},
-                                                           {'role': 'system', 'content': 'Do not add Notes or examples'},
-                                                           {'role': 'user', 'content': f'Q language question:{question}'}], tokenize=False)
-
-        output = self.model.generate([conversation], SamplingParams(temperature=0,
-                                                                    top_p=0.9,
-                                                                    max_tokens=256,
-                                                                    stop_token_ids=[self.tokenizer.eos_token_id, self.tokenizer.convert_tokens_to_ids("<|eot_id|>")]))
-
-        answer = output[0].outputs[0].text.replace('Q language answer:', '')
-        self.logger.info(f'### Answer:{answer}')
+        prompt = f"""<|begin_of_text|>
+        <|start_header_id|>system<|end_header_id|>You are a powerful Q language question-answering system.<|eot_id|>
+        <|start_header_id|>system<|end_header_id|>Your job is to provide a single and concise Q language answer to a Q language question.<|eot_id|>
+        <|start_header_id|>system<|end_header_id|>Do not add Notes or examples.<|eot_id|>
+        <|start_header_id|>user<|end_header_id|>Q language question:{question}<|eot_id|>"""
+        answer = self.get_output(prompt)
+        print(f'### Answer:{answer}')
 
         return answer
 
