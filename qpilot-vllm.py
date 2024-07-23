@@ -12,10 +12,10 @@ class QPilotVllm:
     def __init__(self):
         self.logger = logging.getLogger("ray.serve")
 
-        self.model = LLM('meta-llama/Llama-2-7b-chat-hf')
+        self.model = LLM(model=os.environ.get('MDL_LOC'), tokenizer=os.environ.get('MDL_LOC'), trust_remote_code=True, gpu_memory_utilization=0.7)
         self.logger.info('### Model loaded')
 
-        self.tokenizer = AutoTokenizer.from_pretrained('meta-llama/Llama-2-7b-chat-hf')
+        self.tokenizer = self.model.get_tokenizer()
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.logger.info('### Tokenizer loaded')
 
