@@ -8,7 +8,7 @@ from starlette.requests import Request
 from transformers import AutoTokenizer, GenerationConfig, BitsAndBytesConfig
 
 
-@serve.deployment(ray_actor_options={"num_gpus": 1.0, "num_cpus": 4})
+@serve.deployment(ray_actor_options={"num_gpus": 1.0, "num_cpus": 4.0})
 class QPilotQuant:
 
     def __init__(self):
@@ -39,21 +39,25 @@ class QPilotQuant:
         return self.tokenizer.decode(output[0], skip_special_tokens=True)
 
     async def __call__(self, http_request: Request) -> str:
-        req = await http_request.json()
-        self.logger.debug(f'### Request body: {req}')
+        try:
+            req = await http_request.json()
+            self.logger.debug(f'### Request body: {req}')
 
-        question = req['question']
-        self.logger.debug(f'### Question:{question}')
+            question = req['question']
+            self.logger.debug(f'### Question:{question}')
 
-        prompt = f"""<|begin_of_text|>
-        <|start_header_id|>system<|end_header_id|>You are a powerful Q language question-answering system.<|eot_id|>
-        <|start_header_id|>system<|end_header_id|>Your job is to provide a single and concise Q language answer to a Q language question.<|eot_id|>
-        <|start_header_id|>system<|end_header_id|>Do not add Notes or examples.<|eot_id|>
-        <|start_header_id|>user<|end_header_id|>Q language question:{question}<|eot_id|>"""
-        answer = self.get_output(prompt)
-        self.logger.debug(f'### Answer:{answer}')
+            prompt = f"""<|begin_of_text|>
+            <|start_header_id|>system<|end_header_id|>You are a powerful Q language question-answering system.<|eot_id|>
+            <|start_header_id|>system<|end_header_id|>Your job is to provide a single and concise Q language answer to a Q language question.<|eot_id|>
+            <|start_header_id|>system<|end_header_id|>Do not add Notes or examples.<|eot_id|>
+            <|start_header_id|>user<|end_header_id|>Q language question:{question}<|eot_id|>"""
+            answer = self.get_output(prompt)
+            self.logger.debug(f'### Answer:{answer}')
 
-        return answer
+            return answer
+        except Exception as e:
+            self.logger.error(e)
+            return ''
 
 
 app = QPilotQuant.bind()
